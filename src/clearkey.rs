@@ -103,7 +103,7 @@ mod tests {
         keys.insert(kid_hex.to_string(), key_hex.to_string());
 
         let kid_b64 = hex_to_b64url(kid_hex);
-        let resp = build_license(&keys, &[kid_b64.clone()]).unwrap();
+        let resp = build_license(&keys, std::slice::from_ref(&kid_b64)).unwrap();
 
         assert_eq!(resp.keys.len(), 1);
         assert_eq!(resp.keys[0].kty, "oct");

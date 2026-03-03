@@ -259,7 +259,7 @@ pub async fn get_segment(
 
     let stream = upstream
         .bytes_stream()
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()));
+        .map_err(|e| std::io::Error::other(e.to_string()));
 
     let mut builder = Response::builder()
         .header(header::CONTENT_TYPE, &content_type)
