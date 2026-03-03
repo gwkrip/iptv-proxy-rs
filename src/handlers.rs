@@ -1,9 +1,7 @@
-use std::collections::HashMap;
-
 use axum::{
     body::Body,
     extract::{Path, Query, State},
-    http::{header, HeaderValue, StatusCode},
+    http::{header, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
@@ -21,7 +19,7 @@ use crate::{
 
 // ─── Error helper ─────────────────────────────────────────────────────────────
 
-struct ProxyError(anyhow::Error);
+pub(crate) struct ProxyError(anyhow::Error);
 
 impl IntoResponse for ProxyError {
     fn into_response(self) -> Response {
@@ -285,7 +283,7 @@ pub async fn get_clearkey(
 // ─── /status ──────────────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
-struct StatusResponse<'a> {
+pub(crate) struct StatusResponse<'a> {
     status:   &'a str,
     version:  &'a str,
     channels: usize,
@@ -308,7 +306,7 @@ pub async fn get_status(State(state): State<AppState>) -> Json<StatusResponse<'s
 // ─── /channels.json ───────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
-struct ChannelInfo {
+pub(crate) struct ChannelInfo {
     id:      usize,
     name:    String,
     group:   String,
