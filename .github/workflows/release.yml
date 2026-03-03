@@ -109,11 +109,11 @@ jobs:
       # ── Build ──────────────────────────────────────────────────────────────
       - name: Build (native)
         if: "!matrix.cross"
-        run: cargo build --release --target ${{ matrix.target }} --locked
+        run: cargo build --release --target ${{ matrix.target }}
 
       - name: Build (cross)
         if: matrix.cross
-        run: cross build --release --target ${{ matrix.target }} --locked
+        run: cross build --release --target ${{ matrix.target }}
 
       # ── Package ────────────────────────────────────────────────────────────
       - name: Package
