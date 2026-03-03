@@ -31,7 +31,6 @@ jobs:
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Generate changelog
-        id: changelog
         run: |
           git log $(git describe --tags --abbrev=0 HEAD^)..HEAD \
             --pretty=format:"- %s (%h)" \
@@ -44,66 +43,42 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name:    ${{ github.ref }}
+          tag_name:     ${{ github.ref }}
           release_name: "iptv-proxy v${{ steps.get_version.outputs.version }}"
-          body_path:   CHANGELOG_ENTRY.md
-          draft:       false
-          prerelease:  ${{ contains(github.ref, '-') }}
+          body_path:    CHANGELOG_ENTRY.md
+          draft:        false
+          prerelease:   ${{ contains(github.ref, '-') }}
 
   # ── Build matrix ─────────────────────────────────────────────────────────────
   build:
     name: Build — ${{ matrix.target }}
     needs: create-release
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
 
     strategy:
       fail-fast: false
       matrix:
         include:
-          # ── Linux (static musl binaries) ───────────────────────────────────
-          - target: x86_64-unknown-linux-musl
-            os:     ubuntu-latest
+          # ── x86_64 ────────────────────────────────────────────────────────
+          - target: x86_64-unknown-linux-gnu
             cross:  false
-            ext:    ""
-            archive: tar.gz
+
+          - target: x86_64-unknown-linux-musl
+            cross:  false
+
+          # ── aarch64 (arm64) ───────────────────────────────────────────────
+          - target: aarch64-unknown-linux-gnu
+            cross:  true
 
           - target: aarch64-unknown-linux-musl
-            os:     ubuntu-latest
             cross:  true
-            ext:    ""
-            archive: tar.gz
+
+          # ── armv7 (arm32) ─────────────────────────────────────────────────
+          - target: armv7-unknown-linux-gnueabihf
+            cross:  true
 
           - target: armv7-unknown-linux-musleabihf
-            os:     ubuntu-latest
             cross:  true
-            ext:    ""
-            archive: tar.gz
-
-          # ── macOS (universal-ish — both x86_64 + Apple Silicon) ───────────
-          - target: x86_64-apple-darwin
-            os:     macos-latest
-            cross:  false
-            ext:    ""
-            archive: tar.gz
-
-          - target: aarch64-apple-darwin
-            os:     macos-latest
-            cross:  false
-            ext:    ""
-            archive: tar.gz
-
-          # ── Windows ────────────────────────────────────────────────────────
-          - target: x86_64-pc-windows-msvc
-            os:     windows-latest
-            cross:  false
-            ext:    ".exe"
-            archive: zip
-
-          - target: aarch64-pc-windows-msvc
-            os:     windows-latest
-            cross:  false
-            ext:    ".exe"
-            archive: zip
 
     steps:
       - uses: actions/checkout@v4
@@ -117,21 +92,21 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
-      # ── musl toolchain for native Linux builds ─────────────────────────────
-      - name: Install musl tools (Linux native)
-        if: matrix.os == 'ubuntu-latest' && !matrix.cross
+      # ── Native deps untuk non-cross musl build ─────────────────────────────
+      - name: Install musl tools (native x86_64-musl)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
         run: |
           sudo apt-get update -q
           sudo apt-get install -y musl-tools
 
-      # ── cross for cross-compilation ────────────────────────────────────────
+      # ── cross untuk semua target cross-compile ─────────────────────────────
       - name: Install cross
         if: matrix.cross
         uses: taiki-e/install-action@v2
         with:
           tool: cross
 
-      # ── Build ─────────────────────────────────────────────────────────────
+      # ── Build ──────────────────────────────────────────────────────────────
       - name: Build (native)
         if: "!matrix.cross"
         run: cargo build --release --target ${{ matrix.target }} --locked
@@ -140,34 +115,19 @@ jobs:
         if: matrix.cross
         run: cross build --release --target ${{ matrix.target }} --locked
 
-      # ── Package ───────────────────────────────────────────────────────────
-      - name: Package (tar.gz / Unix)
-        if: matrix.archive == 'tar.gz'
-        shell: bash
+      # ── Package ────────────────────────────────────────────────────────────
+      - name: Package
         run: |
-          ASSET_NAME="${{ env.BIN }}-v${{ needs.create-release.outputs.version }}-${{ matrix.target }}"
+          VERSION="${{ needs.create-release.outputs.version }}"
+          ASSET_NAME="${{ env.BIN }}-v${VERSION}-${{ matrix.target }}"
           mkdir -p dist/$ASSET_NAME
-          cp target/${{ matrix.target }}/release/${{ env.BIN }}${{ matrix.ext }} dist/$ASSET_NAME/
+          cp target/${{ matrix.target }}/release/${{ env.BIN }} dist/$ASSET_NAME/
           cp README.md LICENSE dist/$ASSET_NAME/ 2>/dev/null || true
           tar -C dist -czf dist/$ASSET_NAME.tar.gz $ASSET_NAME
           echo "ASSET=dist/$ASSET_NAME.tar.gz" >> $GITHUB_ENV
           echo "ASSET_NAME=$ASSET_NAME.tar.gz"  >> $GITHUB_ENV
 
-      - name: Package (zip / Windows)
-        if: matrix.archive == 'zip'
-        shell: pwsh
-        run: |
-          $version = "${{ needs.create-release.outputs.version }}"
-          $assetName = "${{ env.BIN }}-v$version-${{ matrix.target }}"
-          New-Item -ItemType Directory -Force dist/$assetName
-          Copy-Item target/${{ matrix.target }}/release/${{ env.BIN }}${{ matrix.ext }} dist/$assetName/
-          if (Test-Path README.md) { Copy-Item README.md dist/$assetName/ }
-          if (Test-Path LICENSE)   { Copy-Item LICENSE   dist/$assetName/ }
-          Compress-Archive -Path dist/$assetName -DestinationPath dist/$assetName.zip
-          echo "ASSET=dist/$assetName.zip"      >> $env:GITHUB_ENV
-          echo "ASSET_NAME=$assetName.zip"       >> $env:GITHUB_ENV
-
-      # ── Upload to release ──────────────────────────────────────────────────
+      # ── Upload ke release ──────────────────────────────────────────────────
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         env:
@@ -176,41 +136,4 @@ jobs:
           upload_url:         ${{ needs.create-release.outputs.upload_url }}
           asset_path:         ${{ env.ASSET }}
           asset_name:         ${{ env.ASSET_NAME }}
-          asset_content_type: >-
-            ${{ matrix.archive == 'zip' && 'application/zip' || 'application/gzip' }}
-
-  # ── Docker image ─────────────────────────────────────────────────────────────
-  docker:
-    name: Docker — push to GHCR
-    needs: [create-release, build]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:v${{ needs.create-release.outputs.version }}
-          cache-from: type=gha
-          cache-to:   type=gha,mode=max
+          asset_content_type: application/gzip
