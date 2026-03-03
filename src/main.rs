@@ -1,5 +1,5 @@
-mod config;
 mod clearkey;
+mod config;
 mod handlers;
 mod playlist;
 mod proxy;
@@ -9,8 +9,8 @@ mod state;
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{
-    Router,
     routing::{get, post},
+    Router,
 };
 use tower_http::{
     cors::{Any, CorsLayer},
@@ -22,8 +22,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 use crate::{
     config::Config,
     handlers::{
-        get_channels_json, get_clearkey, get_hls, get_mpd, get_playlist,
-        get_segment, get_status, get_stream, options_handler,
+        get_channels_json, get_clearkey, get_hls, get_mpd, get_playlist, get_segment, get_status,
+        get_stream, options_handler,
     },
     playlist::parse_playlist,
     state::AppState,
@@ -80,21 +80,21 @@ async fn main() -> anyhow::Result<()> {
     // ── Router ───────────────────────────────────────────────────────────────
     let app = Router::new()
         // ── Playlist / discovery ──────────────────────────────────────────
-        .route("/",                  get(get_playlist))
-        .route("/playlist.m3u8",     get(get_playlist))
-        .route("/channels.json",     get(get_channels_json))
-        .route("/status",            get(get_status))
+        .route("/", get(get_playlist))
+        .route("/playlist.m3u8", get(get_playlist))
+        .route("/channels.json", get(get_channels_json))
+        .route("/status", get(get_status))
         // ── Stream entry points ───────────────────────────────────────────
-        .route("/stream/:id",        get(get_stream))
+        .route("/stream/:id", get(get_stream))
         // ── Manifest proxies ──────────────────────────────────────────────
-        .route("/hls",               get(get_hls))
-        .route("/mpd",               get(get_mpd))
+        .route("/hls", get(get_hls))
+        .route("/mpd", get(get_mpd))
         // ── Segment proxy ─────────────────────────────────────────────────
-        .route("/segment",           get(get_segment))
+        .route("/segment", get(get_segment))
         // ── ClearKey license server ───────────────────────────────────────
-        .route("/clearkey",          post(get_clearkey).get(get_clearkey))
+        .route("/clearkey", post(get_clearkey).get(get_clearkey))
         // ── OPTIONS preflight ─────────────────────────────────────────────
-        .route("/*path",             axum::routing::options(options_handler))
+        .route("/*path", axum::routing::options(options_handler))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state);

@@ -19,7 +19,7 @@ use crate::{
 
 // ─── Error helper ─────────────────────────────────────────────────────────────
 
-pub(crate) struct ProxyError(anyhow::Error);
+pub struct ProxyError(anyhow::Error);
 
 impl IntoResponse for ProxyError {
     fn into_response(self) -> Response {
@@ -30,7 +30,9 @@ impl IntoResponse for ProxyError {
 }
 
 impl<E: Into<anyhow::Error>> From<E> for ProxyError {
-    fn from(e: E) -> Self { ProxyError(e.into()) }
+    fn from(e: E) -> Self {
+        ProxyError(e.into())
+    }
 }
 
 type HandlerResult<T> = Result<T, ProxyError>;
@@ -56,7 +58,10 @@ pub struct ClearKeyQuery {
 
 // ─── /playlist.m3u8 ──────────────────────────────────────────────────────────
 
-pub async fn get_playlist(State(state): State<AppState>, req: axum::http::Request<Body>) -> Response {
+pub async fn get_playlist(
+    State(state): State<AppState>,
+    req: axum::http::Request<Body>,
+) -> Response {
     let host = req
         .headers()
         .get("host")
@@ -97,12 +102,12 @@ pub async fn get_stream(
     let proxy_base = format!("http://{}", host);
 
     let ctx = ProxyCtx {
-        headers:      ch.headers.clone(),
-        clear_keys:   ch.clear_keys.clone(),
+        headers: ch.headers.clone(),
+        clear_keys: ch.clear_keys.clone(),
         license_type: ch.license_type.clone(),
     };
-    let ctx_b64  = ctx.encode();
-    let url_enc  = urlencoding::encode(&ch.stream_url).to_string();
+    let ctx_b64 = ctx.encode();
+    let url_enc = urlencoding::encode(&ch.stream_url).to_string();
 
     let kind = if ch.is_dash() { "mpd" } else { "hls" };
     let location = format!("{}/{kind}?ctx={ctx_b64}&url={url_enc}", proxy_base);
@@ -127,21 +132,34 @@ pub async fn get_hls(
     if target_url.is_empty() {
         return Ok((StatusCode::BAD_REQUEST, "Missing ?url=").into_response());
     }
-    let ctx_b64  = q.ctx.clone().unwrap_or_default();
-    let ctx      = ProxyCtx::decode(&ctx_b64);
+    let ctx_b64 = q.ctx.clone().unwrap_or_default();
+    let ctx = ProxyCtx::decode(&ctx_b64);
 
-    let host = req.headers().get("host").and_then(|v| v.to_str().ok()).unwrap_or("localhost:8888");
+    let host = req
+        .headers()
+        .get("host")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("localhost:8888");
     let proxy_base = format!("http://{}", host);
 
     debug!(url = %target_url, "fetching HLS manifest");
 
-    let (_status, resp_headers, body) = fetch_bytes(&state.http_client, &target_url, &ctx.headers).await?;
+    let (_status, resp_headers, body) =
+        fetch_bytes(&state.http_client, &target_url, &ctx.headers).await?;
     let text = String::from_utf8_lossy(&body);
 
     // If it turned out to be a DASH manifest, redirect
-    let ct = resp_headers.get("content-type").map(|s| s.as_str()).unwrap_or("");
+    let ct = resp_headers
+        .get("content-type")
+        .map(|s| s.as_str())
+        .unwrap_or("");
     if ct.contains("mpd") || target_url.contains(".mpd") {
-        let location = format!("{}/mpd?ctx={}&url={}", proxy_base, ctx_b64, urlencoding::encode(&target_url));
+        let location = format!(
+            "{}/mpd?ctx={}&url={}",
+            proxy_base,
+            ctx_b64,
+            urlencoding::encode(&target_url)
+        );
         return Ok(Response::builder()
             .status(StatusCode::FOUND)
             .header(header::LOCATION, location)
@@ -170,14 +188,19 @@ pub async fn get_mpd(
         return Ok((StatusCode::BAD_REQUEST, "Missing ?url=").into_response());
     }
     let ctx_b64 = q.ctx.clone().unwrap_or_default();
-    let ctx     = ProxyCtx::decode(&ctx_b64);
+    let ctx = ProxyCtx::decode(&ctx_b64);
 
-    let host = req.headers().get("host").and_then(|v| v.to_str().ok()).unwrap_or("localhost:8888");
+    let host = req
+        .headers()
+        .get("host")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("localhost:8888");
     let proxy_base = format!("http://{}", host);
 
     debug!(url = %target_url, clearkey = ctx.has_clear_keys(), "fetching DASH MPD");
 
-    let (_status, resp_headers, body) = fetch_bytes(&state.http_client, &target_url, &ctx.headers).await?;
+    let (_status, resp_headers, body) =
+        fetch_bytes(&state.http_client, &target_url, &ctx.headers).await?;
     let text = String::from_utf8_lossy(&body);
 
     let rewritten = rewrite_mpd(&text, &target_url, &proxy_base, &ctx, &ctx_b64);
@@ -264,8 +287,11 @@ pub async fn get_clearkey(
         return Ok((StatusCode::NOT_FOUND, "No keys available").into_response());
     }
 
-    let request: ClearKeyLicenseRequest = serde_json::from_slice(&body)
-        .unwrap_or(ClearKeyLicenseRequest { kids: None, request_type: None });
+    let request: ClearKeyLicenseRequest =
+        serde_json::from_slice(&body).unwrap_or(ClearKeyLicenseRequest {
+            kids: None,
+            request_type: None,
+        });
 
     let kids = request.kids.unwrap_or_default();
     let license = build_license(&ctx.clear_keys, &kids)?;
@@ -283,9 +309,9 @@ pub async fn get_clearkey(
 // ─── /status ──────────────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
-pub(crate) struct StatusResponse<'a> {
-    status:   &'a str,
-    version:  &'a str,
+pub struct StatusResponse<'a> {
+    status: &'a str,
+    version: &'a str,
     channels: usize,
     uptime_s: u64,
 }
@@ -296,8 +322,8 @@ static START_TIME: once_cell::sync::Lazy<std::time::Instant> =
 pub async fn get_status(State(state): State<AppState>) -> Json<StatusResponse<'static>> {
     let _ = *START_TIME; // ensure initialized
     Json(StatusResponse {
-        status:   "ok",
-        version:  env!("CARGO_PKG_VERSION"),
+        status: "ok",
+        version: env!("CARGO_PKG_VERSION"),
         channels: state.channels.len(),
         uptime_s: START_TIME.elapsed().as_secs(),
     })
@@ -306,13 +332,13 @@ pub async fn get_status(State(state): State<AppState>) -> Json<StatusResponse<'s
 // ─── /channels.json ───────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
-pub(crate) struct ChannelInfo {
-    id:      usize,
-    name:    String,
-    group:   String,
-    url:     String,
-    kind:    String,
-    drm:     String,
+pub struct ChannelInfo {
+    id: usize,
+    name: String,
+    group: String,
+    url: String,
+    kind: String,
+    drm: String,
     has_key: bool,
 }
 
@@ -320,22 +346,38 @@ pub async fn get_channels_json(
     State(state): State<AppState>,
     req: axum::http::Request<Body>,
 ) -> Json<Vec<ChannelInfo>> {
-    let host = req.headers().get("host").and_then(|v| v.to_str().ok()).unwrap_or("localhost:8888");
+    let host = req
+        .headers()
+        .get("host")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("localhost:8888");
     let proxy_base = format!("http://{}", host);
 
-    let info: Vec<ChannelInfo> = state.channels.iter().map(|ch| {
-        let name = extract_extinf_name(&ch.extinf).unwrap_or("Unknown").to_string();
-        let group = extract_extinf_attr(&ch.extinf, "group-title").unwrap_or("-").to_string();
-        ChannelInfo {
-            id:      ch.id,
-            name,
-            group,
-            url:     format!("{}/stream/{}", proxy_base, ch.id),
-            kind:    if ch.is_dash() { "DASH".into() } else { "HLS".into() },
-            drm:     ch.license_type.clone().unwrap_or_else(|| "none".into()),
-            has_key: !ch.clear_keys.is_empty(),
-        }
-    }).collect();
+    let info: Vec<ChannelInfo> = state
+        .channels
+        .iter()
+        .map(|ch| {
+            let name = extract_extinf_name(&ch.extinf)
+                .unwrap_or("Unknown")
+                .to_string();
+            let group = extract_extinf_attr(&ch.extinf, "group-title")
+                .unwrap_or("-")
+                .to_string();
+            ChannelInfo {
+                id: ch.id,
+                name,
+                group,
+                url: format!("{}/stream/{}", proxy_base, ch.id),
+                kind: if ch.is_dash() {
+                    "DASH".into()
+                } else {
+                    "HLS".into()
+                },
+                drm: ch.license_type.clone().unwrap_or_else(|| "none".into()),
+                has_key: !ch.clear_keys.is_empty(),
+            }
+        })
+        .collect();
 
     Json(info)
 }

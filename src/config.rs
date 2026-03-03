@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use clap::Parser;
+use std::path::PathBuf;
 
 #[derive(Parser, Debug, Clone)]
 #[command(
@@ -19,7 +19,12 @@ pub struct Config {
     pub bind: String,
 
     /// Path to M3U8 playlist file
-    #[arg(short = 'f', long, default_value = "playlist.m3u8", env = "PROXY_PLAYLIST")]
+    #[arg(
+        short = 'f',
+        long,
+        default_value = "playlist.m3u8",
+        env = "PROXY_PLAYLIST"
+    )]
     pub playlist: PathBuf,
 
     /// Upstream request timeout in seconds

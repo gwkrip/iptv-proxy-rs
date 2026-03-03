@@ -1,7 +1,7 @@
-use std::collections::HashMap;
 use anyhow::Result;
-use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 // ─── W3C ClearKey JWK types ──────────────────────────────────────────────────
 
@@ -16,7 +16,7 @@ pub struct ClearKeyLicenseRequest {
 pub struct JwkKey {
     pub kty: String,
     pub kid: String,
-    pub k:   String,
+    pub k: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -34,7 +34,7 @@ pub struct ClearKeyLicenseResponse {
 ///
 /// Returns all matching keys; falls back to returning all keys if none match.
 pub fn build_license(
-    clear_keys:     &HashMap<String, String>,
+    clear_keys: &HashMap<String, String>,
     requested_kids: &[String],
 ) -> Result<ClearKeyLicenseResponse> {
     let mut keys: Vec<JwkKey> = Vec::new();
@@ -66,7 +66,7 @@ fn make_jwk(kid_b64url: &str, key_hex: &str) -> JwkKey {
     JwkKey {
         kty: "oct".to_string(),
         kid: kid_b64url.to_string(),
-        k:   hex_to_b64url(key_hex),
+        k: hex_to_b64url(key_hex),
     }
 }
 
@@ -102,14 +102,12 @@ mod tests {
         let mut keys = HashMap::new();
         keys.insert(kid_hex.to_string(), key_hex.to_string());
 
-        // Encode the KID as the player would
         let kid_b64 = hex_to_b64url(kid_hex);
         let resp = build_license(&keys, &[kid_b64.clone()]).unwrap();
 
         assert_eq!(resp.keys.len(), 1);
         assert_eq!(resp.keys[0].kty, "oct");
         assert_eq!(resp.keys[0].kid, kid_b64);
-        // Verify the key roundtrips
         let decoded = URL_SAFE_NO_PAD.decode(&resp.keys[0].k).unwrap();
         let back_hex: String = decoded.iter().map(|b| format!("{:02x}", b)).collect();
         assert_eq!(back_hex, key_hex);
@@ -118,7 +116,10 @@ mod tests {
     #[test]
     fn test_build_license_fallback_all_keys() {
         let mut keys = HashMap::new();
-        keys.insert("aabbccdd".repeat(4)[..32].to_string(), "11223344".repeat(4)[..32].to_string());
+        keys.insert(
+            "aabbccdd".repeat(4)[..32].to_string(),
+            "11223344".repeat(4)[..32].to_string(),
+        );
 
         // Empty requested KIDs → return all
         let resp = build_license(&keys, &[]).unwrap();
