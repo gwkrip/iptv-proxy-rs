@@ -1,0 +1,80 @@
+[package]
+name        = "iptv-proxy"
+version     = "0.3.0"
+edition     = "2021"
+description = "High-performance IPTV proxy with HLS/DASH rewriting and ClearKey DRM"
+license     = "MIT"
+repository  = "https://github.com/YOUR_USERNAME/iptv-proxy-rs"
+readme      = "README.md"
+keywords    = ["iptv", "proxy", "hls", "dash", "drm"]
+categories  = ["network-programming", "multimedia"]
+authors     = ["You <you@example.com>"]
+
+[[bin]]
+name = "iptv-proxy"
+path = "src/main.rs"
+
+[lib]
+name = "iptv_proxy"
+path = "src/lib.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# HTTP server
+axum          = { version = "0.7",  features = ["http2"] }
+tower         = { version = "0.4",  features = ["util"] }
+tower-http    = { version = "0.5",  features = ["cors", "trace", "compression-gzip"] }
+
+# HTTP client
+reqwest = { version = "0.12", default-features = false, features = ["stream", "rustls-tls", "gzip"] }
+
+# Serialization
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
+
+# Logging / tracing
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
+
+# CLI
+clap = { version = "4", features = ["derive", "env", "color"] }
+
+# Encoding
+base64      = "0.22"
+urlencoding = "2"
+
+# Utilities
+bytes      = "1"
+once_cell  = "1"
+futures    = "0.3"
+anyhow     = "1"
+thiserror  = "1"
+regex      = "1"
+mime       = "0.3"
+chrono     = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tokio-test   = "0.4"
+criterion    = { version = "0.5", features = ["async_tokio"] }
+
+[[bench]]
+name    = "parsing"
+harness = false
+
+# ── Release profile ───────────────────────────────────────────────────────────
+[profile.release]
+opt-level     = 3
+lto           = "fat"
+codegen-units = 1
+strip         = "symbols"
+panic         = "abort"
+overflow-checks = false
+
+# ── Slim profile for CI fast-checks ──────────────────────────────────────────
+[profile.ci]
+inherits      = "dev"
+opt-level     = 0
+debug         = false
+incremental   = true

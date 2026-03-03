@@ -1,0 +1,9 @@
+/target
+/dist
+Cargo.lock.bak
+*.orig
+.env
+.env.*
+playlist.m3u8
+*.local.toml
+benches/*.m3u8.example

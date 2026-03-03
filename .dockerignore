@@ -1,0 +1,7 @@
+target/
+dist/
+.git/
+.github/
+*.md
+*.m3u8
+benches/
